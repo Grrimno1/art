@@ -11,10 +11,8 @@ func main() {
 	fs := http.FileServer(http.Dir("./public"))
 	http.Handle("/", fs) //index
 
-	// endpoint for decoder
-	http.HandleFunc("/decoder", server.DecoderHandler)
-	// endpoint for encoder
-	http.HandleFunc("/encoder", server.EncoderHandler)
+	// endpoint for decoder & encoder
+	http.HandleFunc("/decoder", server.CodecHandler)
 	// endpoint for cypher (XOR/rot13)
 	http.HandleFunc("/cypher", server.CypherHandler)
 	// initializes server at port 8080

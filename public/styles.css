@@ -1,0 +1,55 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 2rem;
+}
+
+.tabs {
+    display: flex;
+    flex-direction: column;
+}
+
+.tab-labels {
+    display: flex;
+    cursor: pointer;
+}
+
+.tab-labels label {
+    flex: 1;
+    padding: 1rem;
+    background: #eee;
+    border: 1px solid #ccc;
+    text-align: center;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+
+.tab-labels label:hover {
+    background: #ddd;
+}
+
+input[type="radio"] {
+    display: none;
+}
+
+.tab-content {
+    border: 1px solid #ccc;
+    border-top: none;
+    padding: 1rem;
+    display: none;
+}
+
+#tab1:checked ~ .tabs .tab-labels label[for="tab1"],
+#tab2:checked ~ .tabs .tab-labels label[for="tab2"] {
+    background: #fff;
+    border-bottom: 1px solid #fff;
+    color: #333;
+    font-weight: bolder;
+    box-shadow: inset 0 -3px 5px rgba(0,0,0,0.1);
+}
+
+#tab1:checked ~ .tabs .content1 {
+    display: block;
+}
+#tab2:checked ~ .tabs .content2 {
+    display: block;
+}
