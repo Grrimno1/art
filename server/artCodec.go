@@ -2,26 +2,32 @@ package server
 
 import (
 	"art/functions"
-	"io"
 	"net/http"
 )
 
 //Simple functions require simple file.
 
 
-//Handling /decoder POST requests.
-func DecoderHandler (w http.ResponseWriter, r *http.Request) {
+/*
+	Handling /decoder POST requests.
+	Body should contain data as x-www-form-urlencoded with key "input"
+*/
+func DecoderHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed, use POST", http.StatusMethodNotAllowed)
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	input := string(body)
+
+	input := r.FormValue("input")
+	if input == "" {
+		http.Error(w, "Input cannot be empty", http.StatusBadRequest)
+		return
+	}
 
 	output := functions.DecodeString(input, true)
 	if output == "Error\n" {
@@ -29,24 +35,31 @@ func DecoderHandler (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted) //202
+	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte(output))
-
 }
 
-//Handling /encoder POST requests
-func EncoderHandler (w http.ResponseWriter, r *http.Request) {
+
+/*
+	Handling /encoder POST requests.
+	Body should contain data as x-www-form-urlencoded with key "input"
+*/
+func EncoderHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed, use POST", http.StatusMethodNotAllowed)
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	input := string(body)
+
+	input := r.FormValue("input")
+	if input == "" {
+		http.Error(w, "Input cannot be empty", http.StatusBadRequest)
+		return
+	}
 
 	output := functions.EncodeString(input, true)
 	if output == "Error\n" {
