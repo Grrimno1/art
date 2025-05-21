@@ -16,6 +16,8 @@ func main() {
 	// endpoint for encoder
 	http.HandleFunc("/encoder", server.EncoderHandler)
 
+	http.HandleFunc("/cypher", server.CypherHandler)
+
 	log.Println("Server starting on: 8080")
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {

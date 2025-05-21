@@ -6,6 +6,10 @@ import (
 	"net/http"
 )
 
+//Simple functions require simple file.
+
+
+//Handling /decoder POST requests.
 func DecoderHandler (w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed, use POST", http.StatusMethodNotAllowed)
@@ -30,6 +34,7 @@ func DecoderHandler (w http.ResponseWriter, r *http.Request) {
 
 }
 
+//Handling /encoder POST requests
 func EncoderHandler (w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed, use POST", http.StatusMethodNotAllowed)
