@@ -53,3 +53,24 @@ input[type="radio"] {
 #tab2:checked ~ .tabs .content2 {
     display: block;
 }
+
+.decoder-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-width: 500px;
+}
+
+.decoder-form label {
+    font-weight: bold;
+}
+
+.decoder-form textarea {
+    resize: vertical;
+    padding: 0.5rem;
+}
+
+.codec-form select,
+.codec-form button {
+    padding: 0.5rem;
+}

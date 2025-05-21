@@ -16,8 +16,18 @@
             </div>
 
             <div class="tab-content content1">
-                <h2>Art Decoder</h2>
-                <p>this is the Art Decoder tab content.</p>
+                <form action="/decoder" method="post" class="decoder-form"
+                    <label for="mode">Mode:</label>
+                    <select name="mode" id="mode" required>
+                        <option value="decode">Decode</option>
+                        <option value="encode">Encode</option>
+                    </select>
+
+                    <label for="input">Your input:</label>
+                    <textarea id="input" name="input" rows="5" required></textarea>
+
+                    <button type="submit">Submit</button>
+                </form>
             </div>
 
             <div class="tab-content content2">
