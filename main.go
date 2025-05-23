@@ -9,8 +9,10 @@ import (
 func main() {
 	//for server static files.
 	fs := http.FileServer(http.Dir("./public"))
-	http.Handle("/", fs) //index
-
+	http.Handle("/static/",http.StripPrefix("/static/", fs)) //index
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./public/index.html")
+	})
 	// endpoint for decoder & encoder
 	http.HandleFunc("/decoder", server.CodecHandler)
 	// endpoint for cypher (XOR/rot13)

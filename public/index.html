@@ -1,39 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <title>Art interface</title>
-        <link rel="stylesheet" href="styles.css">
-    </head>
-    <body>
-        <input type="radio" name="tabs" id="tab1" checked>
-        <input type="radio" name="tabs" id="tab2">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Art interface</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <input type="radio" name="tabs" id="tab1" checked />
+    <input type="radio" name="tabs" id="tab2" />
 
-        <div class="tabs">
-            <div class="tab-labels">
-                <label for="tab1">Art Decoder</label>
-                <label for="tab2">Cypher</label>
+    <div class="tabs">
+      <div class="tab-labels">
+        <label for="tab1">Art Decoder</label>
+        <label for="tab2">Cypher</label>
+      </div>
+
+      <div class="tab-content content1">
+        <form method="POST" action="/decoder">
+          <div class="section">
+            <h2>Decode / Encode</h2>
+
+            <!-- Decode Input -->
+            <textarea name="decodeInput" placeholder="Enter encoded text">{{.DecodeInput}}</textarea>
+
+            <!-- Dual Buttons -->
+            <div class="button-row">
+              <button type="submit" name="action" value="decode" class="arrow-button">
+                ↓ Decode ↓
+              </button>
+              <button type="submit" name="action" value="encode" class="arrow-button">
+                ↑ Encode ↑
+              </button>
             </div>
 
-            <div class="tab-content content1">
-                <form action="/decoder" method="post" class="decoder-form"
-                    <label for="mode">Mode:</label>
-                    <select name="mode" id="mode" required>
-                        <option value="decode">Decode</option>
-                        <option value="encode">Encode</option>
-                    </select>
+            <!-- Encode Result -->
+            <textarea name="encodeInput" placeholder="Result appears here">{{.EncodeInput}}</textarea>
+          </div>
+        </form>
+      </div>
 
-                    <label for="input">Your input:</label>
-                    <textarea id="input" name="input" rows="5" required></textarea>
-
-                    <button type="submit">Submit</button>
-                </form>
-            </div>
-
-            <div class="tab-content content2">
-                <h2>Cypher</h2>
-                <p>This is the Cypher tab content.</p>
-            </div>
-        </div>
-    </body>
+      <div class="tab-content content2">
+        <h2>Cypher</h2>
+        <p>This is the Cypher tab content.</p>
+      </div>
+    </div>
+  </div>
+</body>
 </html>
