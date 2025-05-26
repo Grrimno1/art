@@ -8,8 +8,9 @@
 </head>
 <body>
   <div class="container">
-    <input type="radio" name="tabs" id="tab1" checked />
-    <input type="radio" name="tabs" id="tab2" />
+
+    <input type="radio" name="tabs" id="tab1" {{if ne .Section "cypher"}}checked="checked"{{end}} />
+    <input type="radio" name="tabs" id="tab2" {{if eq .Section "cypher"}}checked="checked"{{end}} />
 
     <div class="tabs">
       <div class="tab-labels">
@@ -23,7 +24,8 @@
             <h2>Decode / Encode</h2>
 
             <!-- Decode Input -->
-            <textarea name="decodeInput" placeholder="Enter encoded text">{{.DecodeInput}}</textarea>
+            <textarea name="decodeInput" rows="{{if .LineCount}}{{.LineCount}}{{else}}4{{end}}" placeholder="Enter encoded text">{{.DecodeInput}}</textarea>
+
 
             <!-- Dual Buttons -->
             <div class="button-row">
@@ -36,14 +38,103 @@
             </div>
 
             <!-- Encode Result -->
-            <textarea name="encodeInput" placeholder="Result appears here">{{.EncodeInput}}</textarea>
+            <textarea name="encodeInput" rows="{{if .LineCount}}{{.LineCount}}{{else}}4{{end}}" placeholder="Result appears here">{{.EncodeInput}}</textarea>
+
+
+            <!-- HTTP Response Indicator -->
+            {{if .StatusMessage}}
+              <div class="response-status {{.StatusType}}">
+                {{.StatusMessage}}
+            </div>
+            {{end}}
           </div>
         </form>
-      </div>
+        <!-- History Section, only if there are entries -->
+        {{if .History}}
+          <h3>History</h3>
+          <div class="history-container">
+            <ul class="history-list">
+              {{range $index, $entry := .History}}
+                <li class="history-entry">
 
+                  <!-- Hidden checkbox toggler -->
+                  <input type="checkbox" id="history-toggle-{{$index}}" class="history-toggle" />
+
+                  <!-- Label acts as clickable button -->
+                  <label for="history-toggle-{{$index}}" class="history-label">
+                    {{$entry.Timestamp}} {{$entry.Action}}
+                  </label>
+
+                  <!-- Details panel, toggled by checkbox -->
+                  <pre class="history-details">Input:
+{{$entry.Input}}
+
+Result:
+{{$entry.Result}}</pre>
+                </li>
+              {{end}}
+            </ul>
+          </div>
+        {{end}}
+      </div>
+      <!--Cypher section-->
       <div class="tab-content content2">
-        <h2>Cypher</h2>
-        <p>This is the Cypher tab content.</p>
+        <form method="POST" action="/cypher">
+          <div class="section">
+            <h2>Cypher</h2>
+
+            <!-- Track which section is submitted -->
+            <input type="hidden" name="section" value="cypher" />
+            <!-- Mode dropdown -->
+            <label for="mode-select">Mode:</label>
+            <select id="mode-select" name="mode" required>
+              <option value="" disabled {{if eq .Mode ""}}selected{{end}}>Select mode</option>
+              <option value="xor" {{if eq .Mode "xor"}}selected{{end}}>XOR</option>
+              <option value="rot13" {{if eq .Mode "rot13"}}selected{{end}}>ROT13</option>
+            </select>
+            <!-- Key input for XOR mode -->
+            <label for="key-input">Key (only for XOR):</label>
+           <textarea id="key-input" name="key" rows="1" placeholder="Enter XOR key"></textarea>
+
+            <!-- Input textarea -->
+            <label for="input-textarea">Input:</label>
+            <textarea id="input-textarea" name="input" rows="{{if .LineCount}}{{.LineCount}}{{else}}4{{end}}" placeholder="Enter text" required>{{.Input}}</textarea>
+
+            <!-- Submit button -->
+            <button type="submit" class="arrow-button">Process</button>
+
+             <!-- Result textarea-->
+            <label for="result-textarea">Result:</label>           
+            <textarea id="result-textarea" rows="{{if .LineCount}}{{.LineCount}}{{else}}4{{end}}" readonly>{{.Result}}</textarea>
+            <!-- Status message -->
+             {{if .StatusMessage}}
+             <div class="response-status {{.StatusType}}">
+              {{.StatusMessage}}
+             </div>
+             {{end}}
+          </div>
+        </form>
+        {{if .CypherHistory}}
+        <h3>History</h3>
+        <div class="history-container">
+          <ul class="history-list">
+          {{range $index, $entry := .CypherHistory}}
+          <li class="history-entry">
+            <input type="checkbox" id="cypher-history-toggle-{{$index}}" class="history-toggle" />
+            <label for="cypher-history-toggle-{{$index}}" class="history-label">
+              {{$entry.Timestamp}} {{$entry.Mode}}
+            </label>
+          <pre class="history-details">Key: {{$entry.Key}}
+Input:
+{{$entry.Input}}
+
+Result:
+{{$entry.Result}}</pre>
+          </li>
+          {{end}}
+        </ul>
+      </div>
+      {{end}}
       </div>
     </div>
   </div>
