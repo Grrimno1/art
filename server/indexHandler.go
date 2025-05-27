@@ -19,7 +19,6 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// log error server-side
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
-		// return is good here, keep it
 		return
 	}
 }

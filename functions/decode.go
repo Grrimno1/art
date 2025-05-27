@@ -56,7 +56,7 @@ func decodeLine(input string) string {
 
 			//Trying to convert repetition count to an integer. 
 			count, err := strconv.Atoi(parts[0])
-			if err != nil {
+			if err != nil || count < 0 {
 				return printError()
 			}
 			//appends repeated pattern to the result.
