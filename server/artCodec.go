@@ -2,14 +2,13 @@ package server
 
 import (
 	"art/functions"
-	"fmt"
-	"html/template"
+	"errors"
 	"log"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 )
+// struct to keep history of user encode/decode inputs.
 type HistoryEntry struct {
 	Timestamp 	string
 	Action		string
@@ -20,21 +19,29 @@ type HistoryEntry struct {
 var (
 	history 	[]HistoryEntry
 	historyMutex sync.Mutex
-	tmpl = template.Must(template.ParseFiles("public/index.html"))
 )
 
 const (
-	maxInputLength = 10000
-	maxReturnLen = 1000
+	actionEncode 		= "encode"
+	actionDecode 		= "decode"
+	errorString			= "Error\n"
+	statusSuccess		= "success"
 )
 
 
 /*
-	handling /decoder POST requests for both encoding and decoding
+	handling /decoder POST requests for encoding and decoding.
+	- Accepts only POST requests
+	- Parses form inputs: encodeInput, decodeInput, and action.
+	- Validation through validateInputs().
+	- based on action -> calls processEncoding() or processDecoding().
+	- success -> updates CombinedDataPage with results and status.
+	- operation is saved in history.
+	- Locks and copies history for template rendering.
+	- Renders result page with the updated data.
 */
 
 func CodecHandler(w http.ResponseWriter, r *http.Request) {
-	//allowing only POST requests from clientside.
 	if r.Method != http.MethodPost {
 		http.Error(w, "405 Method Not Allowed", http.StatusMethodNotAllowed)
 		log.Printf("Method Not Allowed: received %s, only POST allowed", r.Method)
@@ -44,20 +51,16 @@ func CodecHandler(w http.ResponseWriter, r *http.Request) {
 		Section: "decoder",
 	}
 
-	if r.Method == http.MethodPost {
-		if err := r.ParseForm(); err != nil {
-			respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, "Failed to parse form"), &data)
-			log.Printf("Failed to parse form")
+	if err := r.ParseForm(); err != nil {
+			respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, MsgFailedToParseForm), &data)
+			log.Print(MsgFailedToParseForm)
 			return
 		}
 		
-		//parsing inputs from form.
-		rawDecodeInput := strings.ReplaceAll(r.FormValue("decodeInput"), "\r\n", "\n")
-		rawEncodeInput := strings.ReplaceAll(r.FormValue("encodeInput"), "\r\n", "\n")
+		rawDecodeInput := normalizeNewLines(r.FormValue("decodeInput"))
+		rawEncodeInput := normalizeNewLines(r.FormValue("encodeInput"))
 		action := r.FormValue("action")
 
-		//help variables for validation
-		
 		//validating data from form
 		errMsg, statusType, statusCode, decodeInput, encodeInput := validateInputs(action, rawDecodeInput, rawEncodeInput)
 
@@ -69,7 +72,7 @@ func CodecHandler(w http.ResponseWriter, r *http.Request) {
 			data.EncodeInput = encodeInput
 
 			w.WriteHeader(statusCode)
-			_ = tmpl.Execute(w, data)
+			renderTemplate(w, data)
 			return
 		}
 		
@@ -77,96 +80,101 @@ func CodecHandler(w http.ResponseWriter, r *http.Request) {
 		data.EncodeInput = rawEncodeInput
 
 		switch action {
-		case "encode":
-			result := functions.EncodeString(data.EncodeInput, false)
-			if result == "Error\n" {
-				respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, "Malformed input"), &data)
+		case actionEncode:
+			result, err := processEncoding(data.EncodeInput)
+			if err != nil {
+				respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, MsgMalformedInput), &data)
                 return
-			} else {
-				data.DecodeInput = result
-				data.StatusCode = http.StatusAccepted
-				data.StatusType = "success"
-				data.StatusMessage = formatStatusMessage(http.StatusAccepted, "Successfully encoded.")
-				w.WriteHeader(http.StatusAccepted)
+			}
+			data.DecodeInput = result
+			data.StatusCode = http.StatusAccepted
+			data.StatusType = statusSuccess
+			data.StatusMessage = formatStatusMessage(http.StatusAccepted, MsgSuccessfullyEncoded)
+			w.WriteHeader(http.StatusAccepted)
 				
-				//saving input in history.
-				saveHistory("encode", data.EncodeInput, result)
-			}
+			saveHistory(actionEncode, data.EncodeInput, result)
+			
 
-		case "decode":
-			result := functions.DecodeString(data.DecodeInput, false)
-			if result == "Error\n" {
-				respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, "Malformed input"), &data)
+		case actionDecode:
+			result, err := processDecoding(data.DecodeInput)
+			if err != nil {
+				respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, MsgMalformedInput), &data)
                 return
-			} else {
-				data.EncodeInput = result
-				data.StatusCode = http.StatusAccepted
-				data.StatusType = "success"
-				data.StatusMessage = formatStatusMessage(http.StatusAccepted, "Successfully decoded.")
-				w.WriteHeader(http.StatusAccepted)
-
-				//saving input in history.
-				saveHistory("decode", data.DecodeInput, result)
 			}
+			data.EncodeInput = result
+			data.StatusCode = http.StatusAccepted
+			data.StatusType = statusSuccess
+			data.StatusMessage = formatStatusMessage(http.StatusAccepted, MsgSuccessfullyDecoded)
+			w.WriteHeader(http.StatusAccepted)
+
+			saveHistory(actionDecode, data.DecodeInput, result)
+			
 
 		default:
-			respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, "Invalid action."), &data)
+			respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, MsgInvalidAction), &data)
 			return
 		}
-	}
 	
-	data.LineCount = max(CountLines(data.DecodeInput), CountLines(data.EncodeInput))
+	// Dynamic calculation for textareas; increase @ frontend if DecodeInput or EncodeInput row > 4
+	data.LineCount = max(countLines(data.DecodeInput), countLines(data.EncodeInput))
 	
-	//safely reading history before assigning template data.
+	//safely copying history slice under mutex lock
 	historyMutex.Lock()
 	data.History = make([]HistoryEntry, len(history))
 	copy(data.History, history)
 	historyMutex.Unlock()
 
-	if err := tmpl.Execute(w, data); err != nil {
-		http.Error(w, "failed to render template", http.StatusInternalServerError)
-		log.Printf("template execution error: %v", err)
-	}
+	renderTemplate(w, data)
 }
 
+// Encodes data using part1 functions
+func processEncoding(input string) (string, error) {
+	result := functions.EncodeString(input, false)
+	if result == errorString {
+		return "", errors.New(MsgMalformedInput)
+	}
+	return result, nil
+}
+
+// decodes data using part1 functions
+func processDecoding(input string) (string, error) {
+	result := functions.DecodeString(input, false)
+	if result == errorString {
+		return "", errors.New(MsgMalformedInput)
+	}
+	return result, nil
+}
+
+/*input validation; checks for input length limits. 
+  added this to improve security of this webserver.
+*/
 func validateInputs(action, rawDecodeInput, rawEncodeInput string) (errMsg, statusType string, statusCode int, decodeInput, encodeInput string) {
-	if maxReturnLen > maxInputLength {
+	if MaxReturnLength > MaxInputLength {
 		log.Println("Misconfigured: maxReturnLen exceed maxInputLength")
-		return formatStatusMessage(http.StatusInternalServerError, "Internal server error."), "error", http.StatusInternalServerError, "", ""
+		return formatStatusMessage(http.StatusInternalServerError, MsgInternalServerError), StatusError, http.StatusInternalServerError, "", ""
 	}
 	if rawDecodeInput == "" && rawEncodeInput == "" {
-		return formatStatusMessage(http.StatusOK, "please enter text to encode or decode."), "info", http.StatusOK, "", ""
+		return formatStatusMessage(http.StatusOK, MsgPleaseEnterText), StatusInfo, http.StatusOK, "", ""
 	}
-	if action == "encode" && inputExceedsLimit(rawEncodeInput, maxInputLength) {
-		return formatStatusMessage(http.StatusRequestEntityTooLarge, "input is too long, Maximum length is 10,000 characters"),
-		 "error", http.StatusRequestEntityTooLarge, "", rawEncodeInput[:maxReturnLen] + "..."
+	if action == actionEncode && inputExceedsLimit(rawEncodeInput, MaxInputLength) {
+		return formatStatusMessage(http.StatusRequestEntityTooLarge, MsgInputTooLong),
+		 StatusError, http.StatusRequestEntityTooLarge, "", rawEncodeInput[:MaxReturnLength] + "..."
 	}
-	if action == "decode" && decodedExceedsLimit(rawDecodeInput, maxInputLength) && 
-		!inputExceedsLimit(rawDecodeInput, maxInputLength) {
-		return formatStatusMessage(http.StatusUnprocessableEntity, "Result exceeds Maximum length of 10,000 characters"), 
-		"error", http.StatusUnprocessableEntity, rawDecodeInput, ""
+	if action == actionDecode && decodedExceedsLimit(rawDecodeInput, MaxInputLength) && 
+		!inputExceedsLimit(rawDecodeInput, MaxInputLength) {
+		return formatStatusMessage(http.StatusUnprocessableEntity, MsgResultTooLong), 
+		StatusError, http.StatusUnprocessableEntity, rawDecodeInput, ""
 		}
-	if action == "decode" && inputExceedsLimit(rawDecodeInput, maxInputLength) {
-		return formatStatusMessage(http.StatusRequestEntityTooLarge, "input is too long, Maximum length is 10,000 characters"),
-		"error", http.StatusRequestEntityTooLarge, rawDecodeInput[:maxReturnLen] + "...", ""
+	if action == actionDecode && inputExceedsLimit(rawDecodeInput, MaxInputLength) {
+		return formatStatusMessage(http.StatusRequestEntityTooLarge, MsgInputTooLong),
+		StatusError, http.StatusRequestEntityTooLarge, rawDecodeInput[:MaxReturnLength] + "...", ""
 	}
 	return "", "", 0, rawDecodeInput, rawEncodeInput
 }
-
-func formatStatusMessage(code int, msg string) string {
-	return fmt.Sprintf("%d %s: %s", code, http.StatusText(code), msg)
-}
-func respondWithError(w http.ResponseWriter, code int, msg string, data *CombinedPageData) {
-	data.StatusCode = code
-	data.StatusType = "error"
-	data.StatusMessage = msg
-	w.WriteHeader(code)
-	_ = tmpl.Execute(w, data)
-}
-
+// appends new encode/decode record to history with a timestamp.
 func saveHistory(action, input, result string) {
 	entry := HistoryEntry {
-		Timestamp: 	time.Now().Format("02.01.06 15:04"),
+		Timestamp: 	time.Now().Format("2006-01-02 15:04"),
 		Action: 	action,
 		Input:		input,
 		Result:		result,
@@ -177,23 +185,8 @@ func saveHistory(action, input, result string) {
 
 	history = append(history, entry)
 	//keep track of the last 20 entries.
-	if len(history) > 20 {
-		history = history[len(history)-20:]
+	if len(history) > MaxHistoryEntries {
+		history = history[len(history) - MaxHistoryEntries:]
 	}
 }
 
-//counting the lines of input so we can adjust textareas in frontend for better user experience.
-func CountLines(s string) int {
-	lines := strings.Count(s, "\n") + 1
-	if lines < 4 {
-		return 4
-	}
-	return lines
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
