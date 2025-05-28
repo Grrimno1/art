@@ -25,7 +25,6 @@ const (
 	actionEncode 		= "encode"
 	actionDecode 		= "decode"
 	errorString			= "Error\n"
-	statusSuccess		= "success"
 )
 
 
@@ -43,8 +42,8 @@ const (
 
 func CodecHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "405 Method Not Allowed", http.StatusMethodNotAllowed)
 		log.Printf("Method Not Allowed: received %s, only POST allowed", r.Method)
+		http.Error(w, MsgMethodNotAllowed, http.StatusMethodNotAllowed)
 		return
 	}
 	data := CombinedPageData{
@@ -52,8 +51,8 @@ func CodecHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
+			log.Printf("%s: %v", MsgFailedToParseForm, err)
 			respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, MsgFailedToParseForm), &data)
-			log.Print(MsgFailedToParseForm)
 			return
 		}
 		

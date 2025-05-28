@@ -2,13 +2,12 @@ package server
 
 import (
 	"net/http"
-	"log"
 )
 
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	//validate for method that it is GET
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, MsgMethodNotAllowed, http.StatusMethodNotAllowed)
 		return
 	}
 	data := CombinedPageData{
@@ -16,17 +15,9 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 		DecodeInput:	"",
 		EncodeInput: 	"",
 		StatusCode:		http.StatusOK,
-		StatusType:		"success",
-		StatusMessage:  "200 Ok: welcome",
+		StatusType:		statusSuccess,
+		StatusMessage:  formatStatusMessage(http.StatusOK, "welcome"),
 		LineCount:		4,	
 	}
-	
-	
-	if err := tmpl.Execute(w, data); err != nil {
-		// for stdout
-		log.Printf("IndexHandler: template execution error: %v", err)
-		// log error server-side
-		http.Error(w, "Failed to render template", http.StatusInternalServerError)
-		return
-	}
+	renderTemplate(w, data)
 }

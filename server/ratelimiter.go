@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"net"
 )
 
 // tracks requests per IP and enforces rate limits.
@@ -24,14 +25,14 @@ func NewRateLimiter(limit int, interval time.Duration) *RateLimiter {
 }
 
 // allow checks whether the IP is allowed to proceed based on the rate limit
-func (r1 *RateLimiter) allow(ip string) bool {
-	r1.mu.Lock()
-	defer r1.mu.Unlock()
+func (limiter *RateLimiter) allow(ip string) bool {
+	limiter.mu.Lock()
+	defer limiter.mu.Unlock()
 
 	now := time.Now()
-	windowStart := now.Add(-r1.interval)
+	windowStart := now.Add(-limiter.interval)
 
-	times := r1.clients[ip]
+	times := limiter.clients[ip]
 	var updatedTimes []time.Time
 
 	// filter out old request timestamps outside the current interval window
@@ -41,23 +42,26 @@ func (r1 *RateLimiter) allow(ip string) bool {
 		}
 	}
 	// if number of recent requests exceeds limit, deny
-	if len(updatedTimes) >= r1.limit {
-		r1.clients[ip] = updatedTimes
+	if len(updatedTimes) >= limiter.limit {
+		limiter.clients[ip] = updatedTimes
 		return false
 	}
 
 	// record the current request time and allow
-	r1.clients[ip] = append(updatedTimes, now)
+	limiter.clients[ip] = append(updatedTimes, now)
 	return true
 }
 
 // MiddleWare wraps an http.Handler and applies rate limiting to requests.
-func (r1 *RateLimiter) Middleware(next http.Handler) http.Handler {
+func (limiter *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := r.RemoteAddr // identifies client by their IP address.
+		ip, _, err := net.SplitHostPort(r.RemoteAddr) // identify user by IP and remove :port
+		if err != nil {
+			ip = r.RemoteAddr
+		}
 
 		// Check if this request is allowed
-		if !r1.allow(ip) {
+		if !limiter.allow(ip) {
 			if r.Method == http.MethodPost {
 				// shows error msg through html template via POST
 				data := CombinedPageData{

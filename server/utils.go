@@ -26,8 +26,11 @@ const (
 	MsgSuccessfullyEncoded 	= "successfully encoded"
 	MsgSuccessfullyDecoded	= "successfully decoded"
 	MsgInternalServerError 	= "internal server error"
+	MsgMethodNotAllowed 	= "method not allowed"
+
 	StatusInfo 				= "info"
 	StatusError				= "error"
+	statusSuccess			= "success"
 
 	// limits for validation
 	MaxInputLength 		= 10000
@@ -137,8 +140,9 @@ func inputExceedsLimit(input string, limit int) bool {
 }
 // executes HTML template with the provided data.
 func renderTemplate(w http.ResponseWriter, data CombinedPageData) {
+	w.WriteHeader(data.StatusCode)
 	if err := tmpl.Execute(w, data); err != nil {
-		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		log.Printf("Template execution error: %v", err)
+		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 	}
 }

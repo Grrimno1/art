@@ -32,8 +32,9 @@ var (
 */
 func CypherHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "405 Method Not Allowed", http.StatusMethodNotAllowed)
 		log.Printf("Method Not Allowed: received %s, only POST allowed", r.Method)
+		respondWithError(w, http.StatusMethodNotAllowed, MsgMethodNotAllowed,
+			 &CombinedPageData{Section:"cypher"})
 		return
 	}
 
@@ -47,15 +48,18 @@ func CypherHandler(w http.ResponseWriter, r *http.Request) {
 
 	//input validation
 	if rawInput == "" {
-		http.Error(w, MsgInputEmpty, http.StatusBadRequest)
 		log.Printf("Empty input received")
+		respondWithError(w, http.StatusBadRequest, MsgInputEmpty, &data)
 		return
 	}
+
+	//XOR mode validations
 	if mode == xor {
 		//key validation not empty and not too long (256)
 		if key == "" {
-			http.Error(w, MsgXOREmpty, http.StatusBadRequest)
 			log.Printf("XOR mode selected but empty key provided")
+			respondWithError(w, http.StatusBadRequest, MsgXOREmpty, &data)
+			return
 		}
 		if inputExceedsLimit(key, maxKeyLength) {
 			data.StatusCode = http.StatusRequestEntityTooLarge
@@ -79,13 +83,12 @@ func CypherHandler(w http.ResponseWriter, r *http.Request) {
 	data.Key = key
 	
 	var result string
-
 	switch mode {
 	case xor:
 		res, err := functions.Xorify(rawInput, key)
 		if err != nil {
-			http.Error(w, "XOR error: " + err.Error(), http.StatusInternalServerError)
 			log.Printf("XOR error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, MsgInternalServerError, &data)
 			return
 		}
 		result = res
@@ -98,9 +101,11 @@ func CypherHandler(w http.ResponseWriter, r *http.Request) {
 		saveCypherHistory(rot13, "", rawInput, result)
 		
 	default:
-		http.Error(w, "Invalid mode: Use 'xor' or 'rot13'", http.StatusBadRequest)
+		log.Printf("Invalid mode received: %s", mode)
+		respondWithError(w, http.StatusBadRequest, MsgInvalidAction, &data)
 		return
 	}
+
 	// populate success response
 	data.Result = result
 	data.StatusCode = http.StatusOK
@@ -127,6 +132,7 @@ func saveCypherHistory(mode, key, input, result string) {
 		Input:		input,
 		Result:		result,
 	}
+
 	cypherHistoryMutex.Lock()
 	defer cypherHistoryMutex.Unlock()
 
