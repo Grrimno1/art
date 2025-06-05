@@ -1,13 +1,14 @@
 package server
 
 import (
+	"log"
 	"net/http"
 	"sync"
 	"time"
 	"net"
 )
 
-// tracks requests per IP and enforces rate limits.
+// RateLimiter tracks incoming requests per IP and enforces rate limiting to prevent abuse.
 type RateLimiter struct {
 	mu		sync.Mutex
 	clients	map[string][]time.Time // maps ip timestamps of requests
@@ -15,7 +16,7 @@ type RateLimiter struct {
 	interval time.Duration
 }
 
-// initializes a RateLimiter with a given request limit and interval.
+// NewRateLimiter initializes a RateLimiter with a given request limit and interval.
 func NewRateLimiter(limit int, interval time.Duration) *RateLimiter {
 	return &RateLimiter {
 		clients:	make(map[string][]time.Time),
@@ -24,9 +25,11 @@ func NewRateLimiter(limit int, interval time.Duration) *RateLimiter {
 	}
 }
 
-// allow checks whether the IP is allowed to proceed based on the rate limit
+// allow checks whether the given IP is permitted to make a new request.
+// It filters timestamps to keep only recent ones within the allowed time window,
+// and denies access if the request count exceeds the limit.
 func (limiter *RateLimiter) allow(ip string) bool {
-	limiter.mu.Lock()
+	limiter.mu.Lock() // protect clients map access and modification
 	defer limiter.mu.Unlock()
 
 	now := time.Now()
@@ -52,7 +55,9 @@ func (limiter *RateLimiter) allow(ip string) bool {
 	return true
 }
 
-// MiddleWare wraps an http.Handler and applies rate limiting to requests.
+// Middleware wraps an existing http.Handler and applies IP-based rate limiting
+// before allowing the request to proceed. If the rate limit is exceeded, it returns
+// an appropriate error response depending on the request method.
 func (limiter *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip, _, err := net.SplitHostPort(r.RemoteAddr) // identify user by IP and remove :port
@@ -60,10 +65,9 @@ func (limiter *RateLimiter) Middleware(next http.Handler) http.Handler {
 			ip = r.RemoteAddr
 		}
 
-		// Check if this request is allowed
 		if !limiter.allow(ip) {
 			if r.Method == http.MethodPost {
-				// shows error msg through html template via POST
+				// Render error page via template for POST requests.
 				data := CombinedPageData{
 					Section:        "art",
 					DecodeInput:    "",
@@ -73,15 +77,18 @@ func (limiter *RateLimiter) Middleware(next http.Handler) http.Handler {
 					StatusMessage:  "429 too many requests: Please wait a few seconds and try again.",
 					LineCount:      4,
 				}
-				tmpl.Execute(w, data) // render error via frontend
+				if err := tmpl.Execute(w, data); err != nil {
+   	 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+    				log.Printf("template execute error: %v", err)
+				}
 			} else {
-				// If not POST return plain text HTTP error
+				// Return plain HTTP error for non-POST requests.
 				http.Error(w, "429 too many requests", http.StatusTooManyRequests)
 			}
 			return
 		}
 
-		// If allowed, pass request to the next handler.
+		// Proceed to the next handler if rate limit not exceeded.
 		next.ServeHTTP(w, r)
 	})
 }

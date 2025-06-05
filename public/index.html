@@ -24,9 +24,8 @@
             <h2>Decode / Encode</h2>
 
             <!-- Decode Input -->
-            <textarea name="decodeInput" rows="{{if .LineCount}}{{.LineCount}}{{else}}4{{end}}" placeholder="Enter encoded text">{{.DecodeInput}}</textarea>
-
-
+            <textarea name="decodeInput" rows="{{.LineCount}}" placeholder="Enter encoded text">{{.DecodeInput}}</textarea>
+            
             <!-- Dual Buttons -->
             <div class="button-row">
               <button type="submit" name="action" value="decode" class="arrow-button">
@@ -38,7 +37,7 @@
             </div>
 
             <!-- Encode Result -->
-            <textarea name="encodeInput" rows="{{if .LineCount}}{{.LineCount}}{{else}}4{{end}}" placeholder="Result appears here">{{.EncodeInput}}</textarea>
+            <textarea name="encodeInput" rows="{{.LineCount}}" placeholder="Result appears here">{{.EncodeInput}}</textarea>
 
 
             <!-- HTTP Response Indicator -->
@@ -98,14 +97,14 @@ Result:
 
             <!-- Input textarea -->
             <label for="input-textarea">Input:</label>
-            <textarea id="input-textarea" name="input" rows="{{if .LineCount}}{{.LineCount}}{{else}}4{{end}}" placeholder="Enter text" required>{{.Input}}</textarea>
+            <textarea id="input-textarea" name="input" rows="{{.LineCount}}" placeholder="Enter text" required>{{.Input}}</textarea>
 
             <!-- Submit button -->
             <button type="submit" class="arrow-button">Process</button>
 
              <!-- Result textarea-->
             <label for="result-textarea">Result:</label>           
-            <textarea id="result-textarea" rows="{{if .LineCount}}{{.LineCount}}{{else}}4{{end}}" readonly>{{.Result}}</textarea>
+            <textarea id="result-textarea" rows="{{.LineCount}}" readonly>{{.Result}}</textarea>
             <!-- Status message -->
              {{if .StatusMessage}}
              <div class="response-status {{.StatusType}}">

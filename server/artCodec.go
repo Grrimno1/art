@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 )
-// struct to keep history of user encode/decode inputs.
+// HistoryEntry keeps track of each user's encode/decode operation for display in history.
 type HistoryEntry struct {
 	Timestamp 	string
 	Action		string
@@ -17,10 +17,11 @@ type HistoryEntry struct {
 }
 
 var (
-	history 	[]HistoryEntry
-	historyMutex sync.Mutex
+	history 	[]HistoryEntry 	// stores all recent history entries.
+	historyMutex sync.Mutex 	//protects concurrent access to the history slice.
 )
 
+// constants used for action types and error messages.
 const (
 	actionEncode 		= "encode"
 	actionDecode 		= "decode"
@@ -46,23 +47,27 @@ func CodecHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, MsgMethodNotAllowed, http.StatusMethodNotAllowed)
 		return
 	}
+	// prepare data struct for rendering template response
 	data := CombinedPageData{
 		Section: "decoder",
 	}
 
+	// parse POST form data
 	if err := r.ParseForm(); err != nil {
 			log.Printf("%s: %v", MsgFailedToParseForm, err)
 			respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, MsgFailedToParseForm), &data)
 			return
 		}
 		
+		// normalize newlines for consistent processing
 		rawDecodeInput := normalizeNewLines(r.FormValue("decodeInput"))
 		rawEncodeInput := normalizeNewLines(r.FormValue("encodeInput"))
 		action := r.FormValue("action")
 
-		//validating data from form
+		// validates inputs and gets any errors
 		errMsg, statusType, statusCode, decodeInput, encodeInput := validateInputs(action, rawDecodeInput, rawEncodeInput)
 
+		// if validation failed, render template with error message
 		if errMsg != "" {
 			data.StatusMessage = errMsg
 			data.StatusCode = statusCode
@@ -75,13 +80,17 @@ func CodecHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		
+		// store raw inputs in data struct for rendering
 		data.DecodeInput = rawDecodeInput
 		data.EncodeInput = rawEncodeInput
 
+		// process encoding or decoding based on action.
 		switch action {
 		case actionEncode:
 			result, err := processEncoding(data.EncodeInput)
 			if err != nil {
+				// clears DecodeInput and respond with error on failure
+				data.DecodeInput = ""
 				respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, MsgMalformedInput), &data)
                 return
 			}
@@ -97,6 +106,8 @@ func CodecHandler(w http.ResponseWriter, r *http.Request) {
 		case actionDecode:
 			result, err := processDecoding(data.DecodeInput)
 			if err != nil {
+				// clears EncodeInput and respond with error on failure
+				data.EncodeInput = ""
 				respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, MsgMalformedInput), &data)
                 return
 			}
@@ -110,23 +121,25 @@ func CodecHandler(w http.ResponseWriter, r *http.Request) {
 			
 
 		default:
+			// invalid action sent by user
 			respondWithError(w, http.StatusBadRequest, formatStatusMessage(http.StatusBadRequest, MsgInvalidAction), &data)
 			return
 		}
 	
-	// Dynamic calculation for textareas; increase @ frontend if DecodeInput or EncodeInput row > 4
+	// calculate the number of lines for dynamic text area sizing
 	data.LineCount = max(countLines(data.DecodeInput), countLines(data.EncodeInput))
 	
-	//safely copying history slice under mutex lock
+	// safely copy history slice under lock to prevent concurrent access issues.
 	historyMutex.Lock()
 	data.History = make([]HistoryEntry, len(history))
 	copy(data.History, history)
 	historyMutex.Unlock()
 
+	// render the updated page with encoding/decoding results and history.
 	renderTemplate(w, data)
 }
 
-// Encodes data using part1 functions
+// processEncoding calls the encoding function and handles errors
 func processEncoding(input string) (string, error) {
 	result := functions.EncodeString(input, false)
 	if result == errorString {
@@ -135,7 +148,7 @@ func processEncoding(input string) (string, error) {
 	return result, nil
 }
 
-// decodes data using part1 functions
+// same as above, but for decoding.
 func processDecoding(input string) (string, error) {
 	result := functions.DecodeString(input, false)
 	if result == errorString {
@@ -144,8 +157,12 @@ func processDecoding(input string) (string, error) {
 	return result, nil
 }
 
-/*input validation; checks for input length limits. 
-  added this to improve security of this webserver.
+/*
+	validateInputs ensures that user inputs are valid:
+		- Checks configuration sanity (MaxReturnLength vs MaxInputLength)
+		- Requires at least one input field to be filled
+		- validates length limits for encoding and decoding inputs
+		- returns error message, status code, and sanitized inputs for rendering
 */
 func validateInputs(action, rawDecodeInput, rawEncodeInput string) (errMsg, statusType string, statusCode int, decodeInput, encodeInput string) {
 	if MaxReturnLength > MaxInputLength {
@@ -170,22 +187,24 @@ func validateInputs(action, rawDecodeInput, rawEncodeInput string) (errMsg, stat
 	}
 	return "", "", 0, rawDecodeInput, rawEncodeInput
 }
-// appends new encode/decode record to history with a timestamp.
+// saveHistory safely appends a new encode/decode operation to the history slice
 func saveHistory(action, input, result string) {
 	entry := HistoryEntry {
-		Timestamp: 	time.Now().Format("2006-01-02 15:04"),
+		Timestamp: 	time.Now().Format("January 2, 15:04"),
 		Action: 	action,
 		Input:		input,
 		Result:		result,
 	}
-	//locking so we can append user data without issues. This is to avoid duplicate entries.
+	// lock before modifying shared history slice to prevent race conditions
 	historyMutex.Lock()
 	defer historyMutex.Unlock()
 
-	history = append(history, entry)
-	//keep track of the last 20 entries.
+	// insert new entry at the beginning of the slice.
+	history = append([]HistoryEntry{entry}, history...)
+
+	// track history to last MaxHistoryEntries entries to limit size
 	if len(history) > MaxHistoryEntries {
-		history = history[len(history) - MaxHistoryEntries:]
+		history = history[:MaxHistoryEntries]
 	}
 }
 
